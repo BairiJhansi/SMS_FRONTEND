@@ -1,0 +1,123 @@
+// Backend API Endpoint for PostgreSQL User Password Fetch
+// Updated for erd_db database - fetching actual passwords
+// Add this to your backend server (Node.js/Express)
+
+const { Pool } = require('pg');
+const pool = new Pool({
+  user: 'postgres',
+  host: 'localhost',
+  database: 'erd_db',  // Your database name
+  password: 'your_postgres_password',
+  port: 5432,
+});
+
+// GET /api/auth/user-password/:id
+app.get('/api/auth/user-password/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    console.log('Fetching user password for ID:', userId);
+    
+    // SQL Query to fetch user with actual password from erd_db.users table
+    const query = `
+      SELECT id, username, admission_number, email, password_hash 
+      FROM users 
+      WHERE id = $1
+    `;
+    
+    const result = await pool.query(query, [userId]);
+    console.log('Database result:', result.rows);
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      console.log('User found:', user.username);
+      
+      // Since ERP and Moodle passwords are the same, we need to decrypt or use the actual password
+      // For now, let's try to find the actual password or use common patterns
+      res.json({
+        id: user.id,
+        username: user.username,
+        admission_number: user.admission_number,
+        email: user.email,
+        password_hash: user.password_hash,
+        // Try these password options since ERP and Moodle passwords are same
+        password_options: [
+          user.username,
+          user.admission_number,
+          user.email,
+          'password123',
+          '123456',
+          user.username?.toLowerCase(),
+          user.admission_number?.toString()
+        ].filter(Boolean)
+      });
+    } else {
+      console.log('User not found for ID:', userId);
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ error: 'Server error: ' + error.message });
+  }
+});
+
+// Alternative: Test endpoint to find user by username
+app.get('/api/auth/user-by-username/:username', async (req, res) => {
+  try {
+    const username = req.params.username;
+    console.log('Searching for username:', username);
+    
+    const query = `
+      SELECT id, username, admission_number, email, password_hash 
+      FROM users 
+      WHERE username = $1 OR admission_number = $1
+    `;
+    
+    const result = await pool.query(query, [username]);
+    console.log('Search result:', result.rows);
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      res.json({
+        id: user.id,
+        username: user.username,
+        admission_number: user.admission_number,
+        email: user.email,
+        password_hash: user.password_hash,
+        password_options: [
+          user.username,
+          user.admission_number,
+          user.email,
+          'password123',
+          '123456',
+          user.username?.toLowerCase(),
+          user.admission_number?.toString()
+        ].filter(Boolean)
+      });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Test endpoint to list all users (for debugging)
+app.get('/api/auth/users', async (req, res) => {
+  try {
+    const query = `
+      SELECT id, username, admission_number, email 
+      FROM users 
+      LIMIT 10
+    `;
+    
+    const result = await pool.query(query);
+    res.json({
+      users: result.rows,
+      message: 'Users list (first 10) from erd_db'
+    });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
